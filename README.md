@@ -93,3 +93,48 @@ stores the source data and results. Both exposed ports bind to localhost.
 - `scripts/import_data.py`: CSV validation and batched import.
 - `scripts/init.sh`: metadata migration and local UI user creation.
 - `.env.example`: URL and host port configuration template.
+
+## Recorded results
+
+The recorded runs demonstrate both successful processing and an intentional
+freshness check failure. The screenshots below come from the local execution;
+random medal selection can produce different medals in later runs.
+
+### Successful run
+
+The run completed successfully in 25 seconds. The Gold branch ran, the Bronze
+and Silver branches were skipped, and the delay and freshness sensor succeeded.
+
+![Successful run in Grid](screenshots/01_dag_run_success_grid.png)
+
+The graph below shows the task dependencies. Task states for this run are shown
+in the Grid screenshot above; the graph was captured without selecting a run.
+
+![DAG task dependencies](screenshots/01_dag_run_success_graph.png)
+
+### Stored result
+
+The source table is `olympic_dataset.athlete_event_results`. The selected Gold
+branch stored a count of **15,072** in `medal_counts`, with an automatically
+assigned ID and a creation timestamp.
+
+![Stored medal count](screenshots/02_medal_counts.png)
+
+### Intentional freshness failure
+
+A separate run was triggered with `delay_seconds` set to **35**. This exceeds
+the sensor's 30-second freshness window.
+
+![Trigger with a 35-second delay](screenshots/03_dag_run_freshness_failed_start.png)
+
+In that run, the Silver branch and delay succeeded, the other medal branches
+were skipped, and `check_for_correctness` failed. The run finished with status
+`failed`, as expected for this scenario. The screenshots show the final task
+states; they do not include the sensor timeout log.
+
+![Freshness failure in Graph](screenshots/03_dag_run_freshness_failed_graph.png)
+
+![Failed run details in Grid](screenshots/03_dag_run_freshness_failed.png)
+
+The failed-run details screenshot also contains a scheduler heartbeat warning.
+The later Graph screenshot shows the completed run without that warning.
