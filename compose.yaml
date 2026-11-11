@@ -1,0 +1,85 @@
+name: medals-pipeline
+x-airflow: &airflow
+  build: .
+  image: medals-airflow:local
+  environment:
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+    AIRFLOW__CORE__DAG_RUN_CONF_OVERRIDES_PARAMS: "true"
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/state/airflow.db
+    AIRFLOW__WEBSERVER__SECRET_KEY: local-development-secret
+    AIRFLOW_CONN_MEDALS_MYSQL_DB: mysql://medals:medals@mysql:3306/olympic_dataset
+  volumes:
+    - ./scripts/init.sh:/opt/airflow/init.sh:ro
+    - ./medals_dag.py:/opt/airflow/dags/medals_dag.py:ro
+    - airflow-state:/opt/airflow/state
+    - airflow-logs:/opt/airflow/logs
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: local-root-password
+      MYSQL_DATABASE: olympic_dataset
+      MYSQL_USER: medals
+      MYSQL_PASSWORD: medals
+      TZ: UTC
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-0}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysql --protocol=TCP -h 127.0.0.1 -umedals -p$$MYSQL_PASSWORD olympic_dataset -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+  import-data:
+    <<: *airflow
+    entrypoint: ["python", "/opt/import_data.py"]
+    environment:
+      DATA_URL: ${DATA_URL:-your_data_url}
+    volumes:
+      - ./scripts/import_data.py:/opt/import_data.py:ro
+      - ./data:/data:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+  airflow-init:
+    <<: *airflow
+    user: "0:0"
+    entrypoint: /bin/bash
+    command:
+      - -ec
+      - |
+        chown -R airflow:root /opt/airflow/state /opt/airflow/logs
+        exec runuser -u airflow -- bash /opt/airflow/init.sh
+    depends_on:
+      import-data:
+        condition: service_completed_successfully
+  airflow:
+    <<: *airflow
+    entrypoint: /bin/bash
+    command:
+      - -ec
+      - |
+        airflow scheduler &
+        scheduler_pid=$$!
+        airflow webserver &
+        webserver_pid=$$!
+        trap 'kill $$scheduler_pid $$webserver_pid; wait' TERM INT EXIT
+        wait -n $$scheduler_pid $$webserver_pid
+    ports:
+      - "127.0.0.1:${AIRFLOW_PORT:-0}:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 40s
+volumes:
+  mysql-data:
+  airflow-state:
+  airflow-logs:
