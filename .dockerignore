@@ -1,0 +1,4 @@
+# The image installs dependencies; project files are mounted at runtime.
+**
+!Dockerfile
+!.dockerignore

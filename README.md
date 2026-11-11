@@ -14,8 +14,7 @@ cp .env.example .env
 
 Edit `.env` and replace `DATA_URL=your_data_url` with a direct URL to your CSV
 (for example, `DATA_URL=https://example.com/medals.csv`). Compose reads `.env`
-automatically; an exported shell variable takes precedence. No dataset URL is
-bundled. The URL does not need to belong to a particular provider.
+automatically; an exported shell variable takes precedence. Use a direct CSV download URL.
 
 The CSV must be UTF-8, have unique column names containing only letters, digits,
 and underscores (starting with a letter or underscore), and include a `medal`
@@ -107,8 +106,8 @@ and Silver branches were skipped, and the delay and freshness sensor succeeded.
 
 ![Successful run in Grid](screenshots/01_dag_run_success_grid.png)
 
-The graph below shows the task dependencies. Task states for this run are shown
-in the Grid screenshot above; the graph was captured without selecting a run.
+The graph below shows the task dependencies. The Grid screenshot above shows
+the successful run states.
 
 ![DAG task dependencies](screenshots/01_dag_run_success_graph.png)
 
@@ -129,12 +128,8 @@ the sensor's 30-second freshness window.
 
 In that run, the Silver branch and delay succeeded, the other medal branches
 were skipped, and `check_for_correctness` failed. The run finished with status
-`failed`, as expected for this scenario. The screenshots show the final task
-states; they do not include the sensor timeout log.
+`failed`, as expected for this scenario.
 
 ![Freshness failure in Graph](screenshots/03_dag_run_freshness_failed_graph.png)
 
 ![Failed run details in Grid](screenshots/03_dag_run_freshness_failed.png)
-
-The failed-run details screenshot also contains a scheduler heartbeat warning.
-The later Graph screenshot shows the completed run without that warning.
